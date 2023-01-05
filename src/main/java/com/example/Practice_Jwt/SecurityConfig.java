@@ -1,62 +1,43 @@
 package com.example.Practice_Jwt;
 
-
+import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
-import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+
+/// security에서 사용할 보안 설정을 넣는 공간
 @EnableWebSecurity
-@EnableGlobalMethodSecurity(prePostEnabled = true)
+@Configuration
 @RequiredArgsConstructor
 public class SecurityConfig {
-    private  final TokenProvider tokenPovider;
-    private  final JwtAuthenticationEtryPoint jwtAuthenticationEtryPoint;
-
-    // 403 fobidden Exception처리를 위한 클래스
-    private  final JwtAccessDeniedHandler jwtAccessDeniedHandler;
+    private  final JwtTokenProvider jwtTokenProvider;
 
     @Bean
-    public PasswordEncoder passwordEncoder(){
-        return new BCryptPasswordEncoder();
-    }
+    public SecurityFilterChain filterChain (HttpSecurity http) throws Exception{
+        http.httpBasic().disable()
+                .csrf().disable()
+                .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
 
-    @Bean
-    public WebSecurityCustomizer webSecurityCustomizer(){
-        // 필터 적용 예외
-        return (web) -> web.ignoring().antMatchers("/favicon.ico");
-    }
-
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception{
-        return http.csrf().disable()
-                // 401 403 exception 핸들링
-                .exceptionHandling()
-                .authenticationEntryPoint(jwtAuthenticationEtryPoint)
-                .accessDeniedHandler(jwtAccessDeniedHandler)
-
-                .and()
-                .sessionManagement()
-                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-
-                // httpServletRequest 를 사용하는 요청들에 대한 접근 제한 설정
                 .and()
                 .authorizeRequests()
-                .antMatchers("/authenticate").permitAll()
-
-                // jwtSecurityConfig 적용
+                .antMatchers("/members/login").permitAll()
+                .antMatchers("/members/test").hasRole("USER")
+                .anyRequest().authenticated()
                 .and()
-                .apply(new JwtSecurityConfig(tokenPovider))
-
-                .and().build();
-
-
+                // Jwt 인증을 위하여 직접 구현한 필터를 UsernamePasswordAuthenticationFilter 전에 실행 한다는 설정
+                .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
+        return http.build();
     }
-
+    @Bean
+    public PasswordEncoder passwordEncoder(){
+        return PasswordEncoderFactories.createDelegatingPasswordEncoder();
+    }
 }
