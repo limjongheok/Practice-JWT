@@ -13,6 +13,8 @@ import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
+import javax.servlet.ServletRequest;
+import javax.servlet.http.HttpServletRequest;
 import java.security.Key;
 import java.util.Arrays;
 import java.util.Collection;
@@ -75,14 +77,17 @@ public class JwtTokenProvider {
 
 
     // 토큰 정보 검증 메소드
-    public boolean validateToken(String token){
+    public boolean validateToken(String token, HttpServletRequest request){
         try{
             Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
             return true;
         }catch (io.jsonwebtoken.security.SecurityException | MalformedJwtException e){
-            log.info("Invalid Jwt token", e);
+            e.printStackTrace();
+            request.setAttribute("exception", ErrorCode.UnauthorizedException.getErrorCode());
             System.out.println("1");
         }catch (ExpiredJwtException e){
+            e.printStackTrace();
+            request.setAttribute("exception",ErrorCode.ExpirationException.getErrorCode());
             log.info("Expired Jwt Token",e);
 
         }catch (UnsupportedJwtException e){
