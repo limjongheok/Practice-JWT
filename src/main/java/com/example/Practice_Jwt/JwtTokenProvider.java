@@ -1,10 +1,13 @@
 package com.example.Practice_Jwt;
 
+import com.example.Practice_Jwt.Redis.RedisDao;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -13,7 +16,7 @@ import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
-import javax.servlet.ServletRequest;
+import javax.annotation.PostConstruct;
 import javax.servlet.http.HttpServletRequest;
 import java.security.Key;
 import java.util.Arrays;
@@ -23,13 +26,21 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class JwtTokenProvider {
+    private  final RedisDao redisDao;
     private Key key;
 
-    public JwtTokenProvider(@Value("${jwt.secret}")String secretKey){
+    @Value("${jwt.secret}")
+    private  String secretKey;
+
+    @PostConstruct
+    protected  void init(){
         byte[] keyBytes = Decoders.BASE64.decode(secretKey);
         this.key = Keys.hmacShaKeyFor(keyBytes);
     }
+
+
 
     //유저 정보를 가지고 AccessToken, RefreshToken을 생성하는 메소드
     public TokenInfo generateToken(Authentication authentication){
@@ -39,13 +50,21 @@ public class JwtTokenProvider {
 
         //Access Token 생성
         Date accessTokenExpireseIn = new Date(now+86400000); // 만료 시간
+        Date refreshTokenExpireseIn = new Date(now+172800000); // refresh 만료 시간
 
         String accessToken = Jwts.builder().setSubject(authentication.getName()).claim("auth",authorities).setExpiration(accessTokenExpireseIn).signWith(key, SignatureAlgorithm.HS256).compact();
 
         // Refresh Token 생성
-        String refreshToekn = Jwts.builder().setExpiration(new Date(now +86400000)).signWith(key, SignatureAlgorithm.HS256).compact();
+        String refreshToken = Jwts.builder().setExpiration(refreshTokenExpireseIn).signWith(key, SignatureAlgorithm.HS256).compact();
 
-        return TokenInfo.builder().grantType("Bearer").accessToken(accessToken).refreshToken(refreshToekn).build();
+
+        // refresh 토큰 저장
+
+        redisDao.setValues(authentication.getName(),refreshToken,refreshTokenExpireseIn);
+
+
+
+        return TokenInfo.builder().grantType("Bearer").accessToken(accessToken).refreshToken(refreshToken).build();
     }
 
 
